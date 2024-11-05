@@ -2,11 +2,24 @@
 
 MINISHELL_PATH="../minishell"
 
+
 # Run a specific test if the file name was specified
+VALGRIND_FLAG=0
+
 if [[ $1 ]]; then
-	test_lists=(
-		$1
-	)
+	if [[ $1 == "valgrind" ]]; then
+		VALGRIND_FLAG=1
+		test_lists=(
+			"builtins"
+			"pipes"
+			"redirects"
+			"extras"
+		)
+	else
+		test_lists=(
+			$1
+		)
+	fi
 else
 	test_lists=(
 		"builtins"
@@ -20,6 +33,37 @@ if [[ $1 == "wildcards"  || $1 == "bonus" ]]; then
 	MINISHELL_PATH="../minishell_bonus"
 fi
 
+#Define supressions for readline:wa
+
+cat > readline.supp << EOF
+{
+   name
+   Memcheck:Leak
+   fun:*alloc
+   ...
+   obj:*/libreadline.so.*
+   ...
+}
+{
+    leak readline
+    Memcheck:Leak
+    ...
+    fun:readline
+}
+{
+    leak add_history
+    Memcheck:Leak
+    ...
+    fun:add_history
+}
+EOF
+
+VALGRIND_LOG="./test_files/valgrind_output.text"
+TEMP_OUTPUT="./test_files/temp_output"
+VALGRIND_CMD="valgrind -s --suppressions=readline.supp --tool=memcheck -q --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes --show-below-main=no"
+total_leaks=0
+total_fd_leaks=0
+
 BOLD="\e[1m"
 YELLOW="\033[0;33m"
 GREY="\033[38;5;244m"
@@ -29,9 +73,9 @@ RED="\e[0;31m"
 END="\033[0m"
 
 chmod 000 ./test_files/invalid_permission
-mkdir ./outfiles
-mkdir ./mini_outfiles
-mkdir ./bash_outfiles
+mkdir -p ./outfiles
+mkdir -p ./mini_outfiles
+mkdir -p ./bash_outfiles
 
 printf $RED
 echo "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥";
@@ -45,22 +89,51 @@ echo "                                                                          
 echo "🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥";
 echo "                                                                                              ";
 
+check_valgrind_output(){
+	local has_leaks=0
+	local has_fd_leaks=0
+	if	grep -q "definitely lost: [^0]" "$VALGRIND_LOG" || \
+		grep -q "indirecly lost: [^0]" "$VALGRIND_LOG" || \
+		grep -q "possibly lost: [^0]" "$VALGRIND_LOG"; then
+		if	!grep -q "suppressed: " "$VALGRIND_LOG"  || \
+			!grep -q "readline\|add_history" "$VALGRIND_LOG"; then
+		has_leaks =1
+		((total_leaks++))
+		fi
+	fi
+	if	grep -q "Open file descriptor" "$VALGRIND_LOG"; then
+		has_fd_leaks=1
+		((total_fd_leaks++))
+    fi
+	[ $has_leaks -eq 1 ] || [ $has_fd_leaks -eq 1 ]
+    
+}
+
 PROMPT=$(echo -e "\nexit\n" | $MINISHELL_PATH | head -n 1 | sed "s/\x1B\[[0-9;]\{1,\}[A-Za-z]//g" )
 # Helper commands:
 REMOVE_COLORS="sed s/\x1B\[[0-9;]\{1,\}[A-Za-z]//g"
+VALGRIND_OUTPUT_ENV="(GLIBC|LD_)"
+REMOVE_OUTPUT="grep -v GLIBC | grep -v LD_ | grep -v MAKE"
 REMOVE_EXIT="grep -v ^exit$"
+
 
 for testfile in ${test_lists[*]}; do
 
 	printf $RED
 	echo ———————————— $testfile
+	printf $END
 
 	while read teste; do
 		((i++))
 
 		rm -rf ./outfiles/*
 		rm -rf ./mini_outfiles/*
-		MINI_OUTPUT=$(echo -e "$teste" | $MINISHELL_PATH 2> /dev/null | $REMOVE_COLORS | grep -vF "$PROMPT" | $REMOVE_EXIT )
+		if [ $VALGRIND_FLAG -eq 1 ]; then
+			echo -e "$teste" | $VALGRIND_CMD $MINISHELL_PATH 2>"$VALGRIND_LOG" | $REMOVE_COLORS | grep -v GLIBC | grep -v LD_ | grep -v MAKE | grep -vF "$PROMPT" | $REMOVE_EXIT > $TEMP_OUTPUT
+			MINI_OUTPUT=$(cat $TEMP_OUTPUT)
+		else
+			MINI_OUTPUT=$(echo -e "$teste" | $MINISHELL_PATH 2> /dev/null | $REMOVE_COLORS | grep -vF "$PROMPT" | $REMOVE_EXIT )
+		fi
 		MINI_OUTFILES=$(cp ./outfiles/* ./mini_outfiles &>/dev/null)
 		MINI_EXIT_CODE=$(echo -e "$MINISHELL_PATH\n$teste\necho \$?\nexit\n" | bash 2> /dev/null | $REMOVE_COLORS | grep -vF "$PROMPT" | $REMOVE_EXIT | tail -n 1)
 		MINI_ERROR_MSG=$(trap "" PIPE && echo "$teste" | $MINISHELL_PATH 2>&1 > /dev/null | grep -o '[^:]*$' )
@@ -85,7 +158,12 @@ for testfile in ${test_lists[*]}; do
 		else
 			printf ❌
 		fi
+		if check_valgrind_output; then
+			printf "💧"
+		fi
+
 		printf "$GREY $teste \n$END"
+
 		if [ "$OUTFILES_DIFF" ]; then
 			echo "$OUTFILES_DIFF"
 			echo mini outfiles:
@@ -105,6 +183,15 @@ for testfile in ${test_lists[*]}; do
 			echo mini error = \($MINI_ERROR_MSG\)
 			echo bash error = \($BASH_ERROR_MSG\)
 		fi
+		if check_valgrind_output; then
+			printf $RED
+			echo "Memory / File Descriptor issues detected:"
+			grep -v "readline\|add_history" "$VALGRIND_LOG" | grep -A 2 "definitely lost:" 2>/dev/null
+			grep -v "readline\|add_history" "$VALGRIND_LOG" | grep -A 2 "indirectly lost:" 2>/dev/null
+			grep -v "readline\|add_history" "$VALGRIND_LOG" | grep -A 2 "possibly lost:" 2>/dev/null
+			grep "Open file descriptor" "$VALGRIND_LOG" 2>/dev/null
+			printf $END
+		fi
 	done < $testfile
 done
 
@@ -112,18 +199,31 @@ chmod 666 ./test_files/invalid_permission
 rm -rf ./outfiles
 rm -rf ./mini_outfiles
 rm -rf ./bash_outfiles
+rm -rf ./readline.supp
+rm -rf ./valgrind_output.text
+rm -rf ./temp_output
 
 printf $PURPLE
 printf $BOLD
-echo   $ok/$i
+echo	"Test Results: $ok/$i"
+if [ $VALGRIND_FLAG -eq 1 ]; then
+	echo	"Memory Leaks: $total_leaks"
+	echo	"File Descriptor Leaks: $total_fd_leaks"
+fi
 printf $END
 
-if [[ "$ok" == "$i" ]]; then
+if [[ "$ok" == "$i" && "$total_leaks" == "0" && "$total_fd_leaks" == "0" ]]; then
 	echo "🎊 🎊 🎊"
 	echo "😎 😎 😎"
 	echo "🎉 🎉 🎉"
 	exit 0
 else
-	echo "😭 😭 😭"
+	if [[ "$ok" != "$i" ]]; then
+		echo "😭 Test failures detected 😭"
+		echo "😭 😭 😭"
+	fi
+	if [[ "$total_leaks" != "0" || "$total_fd_leaks" != "0" ]]; then
+		echo "💧 Memory or FD leaks detected 💧"
+	fi
 	exit 1
 fi
