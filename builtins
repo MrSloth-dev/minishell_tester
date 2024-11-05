@@ -4,6 +4,8 @@ echo 'hello world'
 echo hello'world'
 echo hello""world
 echo ''
+echo "'$USER'"
+echo '"$USER"'
 echo "$PWD"
 echo '$PWD'
 echo "aspas ->'"
@@ -29,16 +31,29 @@ export HELLO="123 A-"
 export hello world
 export HELLO-=123
 export =
+export =hello
 export 123
+export ZZ+=hello
+export ZZ+=:hello
+export ZZ=hello
+export ZZ-=hello
+export ZZ-A=hello
+export _ZZ-A=hello
+export 1ZZA=hello
+export Z1ZA=hello
+export Z-ZA=hello
 unset
 unset HELLO
 unset HELLO1 HELLO2
 unset HOME
 unset PATH
 unset SHELL
+c
+cda
 cd $PWD
 cd $PWD hi 
-cd 123123
+exi
+exita
 exit 123
 exit 298
 exit +100
@@ -48,5 +63,14 @@ exit -100
 exit "-100"
 exit -"100"
 exit hello
+exit -1
+exit +1
+exit --
+exit ++
+exit a
+exit -a
 exit 42 world
+exit 9223372036854775807
+exit -9223372036854775808
+exit 9223372036854775808
 
