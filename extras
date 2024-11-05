@@ -1,4 +1,4 @@
-
+								ls                      	 	 	 	 	 	 -la
 $PWD
 $EMPTY
 $EMPTY echo hi
@@ -13,3 +13,6 @@ minishell.h
 $
 $?
 README.md
+"" cat ./README.md
+"" echo hello
+test_files/
