@@ -1,7 +1,6 @@
 env | sort | grep -v SHLVL | grep -v ^_
 cat ./test_files/infile_big | grep oi
 export | grep "USER"
-export | cat | wc -w
 commandnotfound1 | commandnotfound2
 commandnotfound1 | echo hello
 echo hello | echo bye
