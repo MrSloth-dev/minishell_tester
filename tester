@@ -60,7 +60,7 @@ EOF
 
 VALGRIND_LOG="./test_files/valgrind_output.text"
 TEMP_OUTPUT="./test_files/temp_output"
-VALGRIND_CMD="valgrind -s --suppressions=readline.supp --tool=memcheck -q --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes --show-below-main=no"
+VALGRIND_CMD="valgrind -s --suppressions=readline.supp --tool=memcheck -q --leak-check=full --show-leak-kinds=all --track-origins=yes --show-below-main=no"
 total_leaks=0
 total_fd_leaks=0
 
@@ -94,6 +94,8 @@ check_valgrind_output(){
 	local has_fd_leaks=0
 	if	grep -q "definitely lost: [^0]" "$VALGRIND_LOG" || \
 		grep -q "indirecly lost: [^0]" "$VALGRIND_LOG" || \
+		grep -A 2 -q "Invalid read of size" "$VALGRIND_LOG" || \
+		grep -A 2 -q "Invalid write" "$VALGRIND_LOG" || \
 		grep -q "possibly lost: [^0]" "$VALGRIND_LOG"; then
 		if	!grep -q "suppressed: " "$VALGRIND_LOG"  || \
 			!grep -q "readline\|add_history" "$VALGRIND_LOG"; then
