@@ -59,6 +59,7 @@ cat > readline.supp << EOF
 EOF
 
 VALGRIND_LOG="./test_files/valgrind_output.text"
+touch "$VALGRIND_LOG" && chmod "$VALGRIND_LOG"
 TEMP_OUTPUT="./test_files/temp_output"
 VALGRIND_CMD="valgrind -s --suppressions=readline.supp --tool=memcheck -q --leak-check=full --show-leak-kinds=all --track-origins=yes --show-below-main=no"
 total_leaks=0
